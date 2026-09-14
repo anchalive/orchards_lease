@@ -116,36 +116,23 @@ Admin
 
 ---
 
-# Status Workflow
+# Smart Orchard Recommendation Engine
 
-```mermaid
-stateDiagram-v2
+OrchardLease features a production-ready, personalized Smart Orchard Recommendation Engine for renters.
 
-Draft --> Pending
+## Key Recommendation Factors & Weights
+- **Booking History (30%)**: Matches fruit varieties, regions, and price ranges of user's past bookings.
+- **Wishlist & Recently Viewed (20%)**: Matches bookmarked and recently viewed orchards.
+- **Preferred Fruit Varieties (15%)**: Directly matches user's preferred fruit selections.
+- **Location Match (10%)**: Matches preferred district and state regions.
+- **Budget Range (10%)**: Evaluates price proximity within user's target budget.
+- **Renter Ratings (10%)**: Rewards top-rated orchards (`ratingAverage`).
+- **Popularity (5%)**: Incorporates favourites, view counts, and featured status.
 
-Pending --> Approved
+## Fallback Mechanisms
+- **Guest / Cold-Start Fallback**: If user has no activity history, recommendations gracefully fall back to top-rated, popular, featured, and recently listed orchards.
 
-Pending --> Rejected
+## Endpoints
+- `GET /api/recommendations` — Returns personalized orchard recommendations with match scores (0-100%) and human-readable match reasons.
+- `GET /api/recommendations/similar/:orchardId` — Returns similar orchards based on fruit variety, region, price range, and ratings.
 
-Approved --> Booked
-```
-
----
-
-# Booking Flow
-
-```mermaid
-sequenceDiagram
-
-Seller->>Admin:
-Submit Orchard
-
-Admin->>Seller:
-Approve
-
-Renter->>Seller:
-Request Booking
-
-Seller->>Renter:
-Accept
-```

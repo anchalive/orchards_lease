@@ -6,6 +6,7 @@ import './index.css';
 import { ToastProvider } from '@/context/ToastContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { MarketplaceProvider } from '@/context/MarketplaceContext';
+import { LocationProvider } from '@/context/LocationContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -14,9 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ToastProvider>
         <AuthProvider>
           <MarketplaceProvider>
-            <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
-              <App />
-            </BrowserRouter>
+            <LocationProvider>
+              <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
+                <App />
+              </BrowserRouter>
+            </LocationProvider>
           </MarketplaceProvider>
         </AuthProvider>
       </ToastProvider>

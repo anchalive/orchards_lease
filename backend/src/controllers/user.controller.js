@@ -7,6 +7,9 @@ import User from '../models/User.js';
 import Booking from '../models/Booking.js';
 import Notification from '../models/Notification.js';
 import Orchard from '../models/Orchard.js';
+import Review from '../models/Review.js';
+import Follow from '../models/Follow.js';
+import Question from '../models/Question.js';
 
 import { uploadBuffer } from '../services/upload.service.js';
 import { revokeAllSessions } from '../services/token.service.js';
@@ -80,14 +83,32 @@ export const getActivityTimeline = asyncHandler(async (req, res) => {
   const isSeller = req.user.role === 'seller';
 
   const bookingFilter = isSeller ? { sellerId: userId } : { renterId: userId };
+  const reviewFilter = isSeller ? { sellerId: userId } : { renterId: userId };
+  const followFilter = isSeller ? { seller: userId } : { follower: userId };
+  const questionFilter = isSeller ? { answeredBy: userId } : { askedBy: userId };
 
-  const [bookings, notifications] = await Promise.all([
+  const [bookings, notifications, reviews, follows, questions] = await Promise.all([
     Booking.find(bookingFilter)
       .populate('orchardId', 'gardenName slug')
       .sort({ updatedAt: -1 })
       .limit(15)
       .lean(),
     Notification.find({ user: userId }).sort({ createdAt: -1 }).limit(15).lean(),
+    Review.find(reviewFilter)
+      .populate('orchardId', 'gardenName slug')
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .lean(),
+    Follow.find(followFilter)
+      .populate(isSeller ? 'follower' : 'seller', 'name avatar')
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .lean(),
+    Question.find(questionFilter)
+      .populate('orchard', 'gardenName slug')
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .lean(),
   ]);
 
   const events = [
@@ -106,6 +127,34 @@ export const getActivityTimeline = asyncHandler(async (req, res) => {
       detail: n.message,
       link: n.link,
       at: n.createdAt,
+    })),
+    ...reviews.map((r) => ({
+      type: 'review',
+      action: r.status,
+      title: `Reviewed ${r.orchardId?.gardenName || 'Orchard'} (${r.rating}★)`,
+      detail: r.comment || 'Submitted a review',
+      link: r.orchardId?.slug ? `/orchards/${r.orchardId.slug}` : '',
+      at: r.createdAt,
+    })),
+    ...follows.map((f) => {
+      const targetUser = isSeller ? f.follower : f.seller;
+      const name = targetUser?.name || (isSeller ? 'A renter' : 'A seller');
+      return {
+        type: 'follow',
+        action: 'followed',
+        title: isSeller ? `${name} started following you` : `Following ${name}`,
+        detail: isSeller ? 'New follower' : 'Added to your followed orchardists',
+        link: !isSeller && f.seller?._id ? `/sellers/${f.seller._id}` : '/following',
+        at: f.createdAt,
+      };
+    }),
+    ...questions.map((q) => ({
+      type: 'question',
+      action: q.status,
+      title: `Asked about ${q.orchard?.gardenName || 'Orchard'}`,
+      detail: q.question,
+      link: q.orchard?.slug ? `/orchards/${q.orchard.slug}` : '',
+      at: q.createdAt,
     })),
   ]
     .sort((a, b) => new Date(b.at) - new Date(a.at))

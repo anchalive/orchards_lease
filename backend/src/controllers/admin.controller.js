@@ -28,6 +28,7 @@ import {
 } from '../services/analytics.service.js';
 import { recordAudit } from '../services/audit.service.js';
 import { notify } from '../services/notification.service.js';
+import { notifyFollowersOfOrchard } from '../services/follow.service.js';
 import { invalidateMaintenanceCache } from '../middleware/maintenance.middleware.js';
 import { revokeAllSessions } from '../services/token.service.js';
 
@@ -285,6 +286,10 @@ export const moderateOrchard = asyncHandler(async (req, res) => {
       link: '/seller/orchards',
       email: true,
     });
+
+    if (action === 'approve') {
+      await notifyFollowersOfOrchard({ sellerId: orchard.sellerId, orchard, isNew: true });
+    }
   }
 
   return ok(res, orchard, `Orchard ${action} done`);
@@ -301,10 +306,16 @@ export const bulkModerateOrchards = asyncHandler(async (req, res) => {
 
 export const getReportedReviews = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPagination(req.query);
-  const filter = { isReported: true };
+  const filter = {};
+  if (req.query.status === 'reported') filter.isReported = true;
+  else if (req.query.status === 'hidden') filter.isHidden = true;
+  else if (req.query.status === 'pending') filter.status = 'pending';
+  else filter.$or = [{ isReported: true }, { isHidden: true }];
+
   const [items, total] = await Promise.all([
     Review.find(filter)
-      .populate('renterId', 'name email')
+      .populate('renterId', 'name email avatar')
+      .populate('sellerId', 'name email')
       .populate('orchardId', 'gardenName slug')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -316,16 +327,39 @@ export const getReportedReviews = asyncHandler(async (req, res) => {
 });
 
 export const moderateReview = asyncHandler(async (req, res) => {
-  const { action } = req.body; // 'hide' | 'unhide' | 'dismiss'
+  const { action } = req.body; // 'approve' | 'reject' | 'hide' | 'unhide' | 'dismiss' | 'delete'
   const review = await Review.findById(req.params.id);
   if (!review) throw ApiError.notFound('Review not found');
-  if (action === 'hide') review.isHidden = true;
-  if (action === 'unhide') review.isHidden = false;
-  if (action === 'dismiss') review.isReported = false;
-  await review.save();
-  await Review.recalculateRating(review.orchardId);
-  return ok(res, review, 'Review moderated');
+
+  const orchardId = review.orchardId;
+  if (action === 'hide') {
+    review.isHidden = true;
+    await review.save();
+  } else if (action === 'unhide') {
+    review.isHidden = false;
+    await review.save();
+  } else if (action === 'dismiss') {
+    review.isReported = false;
+    await review.save();
+  } else if (action === 'approve') {
+    review.status = 'approved';
+    review.isHidden = false;
+    review.isReported = false;
+    await review.save();
+  } else if (action === 'reject') {
+    review.status = 'rejected';
+    review.isHidden = true;
+    await review.save();
+  } else if (action === 'delete') {
+    await Review.findByIdAndDelete(req.params.id);
+  } else {
+    throw ApiError.badRequest('Unknown action');
+  }
+
+  await Review.recalculateRating(orchardId);
+  return ok(res, null, `Review ${action} action completed`);
 });
+
 
 /* =================================================================== */
 /*  AUDIT LOGS                                                          */

@@ -1,3 +1,5 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -20,6 +22,10 @@ import { apiLimiter } from './middleware/rateLimiter.middleware.js';
 import { notFound, errorHandler } from './middleware/error.middleware.js';
 import { healthCheck } from './controllers/meta.controller.js';
 
+// Resolve __dirname equivalent in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 /* ----------------------------- Security ---------------------------- */
@@ -36,6 +42,10 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser(config.cookie.secret));
+
+/* --------------------------- Static Files --------------------------- */
+// Serve static uploads (for uploaded Garden, Tree, Fruit images)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 /* --------------------------- Hardening ----------------------------- */
 app.use(mongoSanitize());

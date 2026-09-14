@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/utils/seed.js",
-    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
+    "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand --detectOpenHandles",
     "lint": "eslint \"src/**/*.js\""
   },
   "keywords": [

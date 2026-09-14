@@ -28,6 +28,13 @@ export const BOOKING_STATUS = Object.freeze({
   COMPLETED: 'completed',
 });
 
+export const OCCUPANCY_STATUS = Object.freeze({
+  AVAILABLE: 'available',
+  RESERVED: 'reserved',
+  LEASED: 'leased',
+  MAINTENANCE: 'maintenance',
+});
+
 export const PAYMENT_STATUS = Object.freeze({
   UNPAID: 'unpaid',
   PENDING: 'pending',
@@ -114,3 +121,62 @@ export const AMENITIES = Object.freeze([
 
 export const DEFAULT_PAGE_SIZE = 12;
 export const MAX_PAGE_SIZE = 100;
+
+export const HEALTH_SCORE_WEIGHTS = Object.freeze({
+  soilFertility: 20,
+  maintenanceStatus: 20,
+  irrigation: 15,
+  waterSourceQuality: 10,
+  pestHistory: 10,
+  diseaseHistory: 10,
+  organicCertification: 5,
+  productionEstimate: 5,
+  orchardAge: 5,
+});
+
+export const SOIL_FERTILITY_SCORES = Object.freeze({
+  High: 20,
+  Medium: 12,
+  Low: 5,
+  Unknown: 0,
+});
+
+export const MAINTENANCE_STATUS_SCORES = Object.freeze({
+  Good: 20,
+  Average: 12,
+  Poor: 5,
+  Unknown: 0,
+});
+
+export const WATER_SOURCE_QUALITY_SCORES = Object.freeze({
+  High: 10,
+  Medium: 6,
+  Low: 2,
+  Unknown: 0,
+});
+
+export const PEST_HISTORY_SCORES = Object.freeze({
+  Low: 10,
+  Medium: 6,
+  High: 2,
+  Unknown: 0,
+});
+
+export const DISEASE_HISTORY_SCORES = Object.freeze({
+  Low: 10,
+  Medium: 6,
+  High: 2,
+  Unknown: 0,
+});
+
+export const RECOMMENDATION_WEIGHTS = Object.freeze({
+  BOOKING_HISTORY: 30,
+  WISHLIST: 20,
+  PREFERRED_FRUITS: 15,
+  LOCATION: 10,
+  BUDGET: 10,
+  RATINGS: 10,
+  POPULARITY: 5,
+});
+
+

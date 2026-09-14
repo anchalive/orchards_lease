@@ -36,9 +36,14 @@ export const connectDB = async () => {
 
 export const disconnectDB = async () => {
   if (!isConnected) return;
-  await mongoose.disconnect();
-  isConnected = false;
-  logger.info('MongoDB disconnected gracefully');
+  try {
+    await mongoose.disconnect();
+    isConnected = false;
+    logger.info('MongoDB disconnected gracefully');
+  } catch (err) {
+    isConnected = false;
+    logger.warn(`Error while disconnecting MongoDB: ${err.message}`);
+  }
 };
 
 export default connectDB;

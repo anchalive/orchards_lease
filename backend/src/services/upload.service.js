@@ -1,5 +1,11 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import config from '../config/index.js';
 import logger from '../config/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Upload service — PLACEHOLDER architecture for Cloudinary.
@@ -20,7 +26,29 @@ export const uploadBuffer = async (file, folder = 'orchards') => {
     logger.warn('[upload] Cloudinary provider selected but not yet implemented — returning placeholder');
   }
 
-  const publicId = `${folder}/${Date.now()}-${(file?.originalname || 'file').replace(/\s+/g, '_')}`;
+  const filename = `${Date.now()}-${(file?.originalname || 'file').replace(/\s+/g, '_')}`;
+  const publicId = `${folder}/${filename}`;
+
+  if (config.upload.provider === 'local' || !config.upload.provider) {
+    try {
+      const uploadsDir = path.join(__dirname, '../../uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filePath = path.join(uploadsDir, filename);
+      await fs.promises.writeFile(filePath, file.buffer);
+      
+      return {
+        url: `/uploads/${filename}`,
+        publicId,
+        bytes: file?.size || 0,
+        provider: 'local',
+      };
+    } catch (err) {
+      logger.error('[upload] Local file write failed, falling back to placeholder', err);
+    }
+  }
+
   return {
     url: fakeCdn(file?.originalname),
     publicId,

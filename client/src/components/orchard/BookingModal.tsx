@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import type { Orchard } from '@/types';
+import type { Orchard, OrchardAvailabilityResponse } from '@/types';
+import { availabilityService } from '@/services/availability.service';
 
 interface BookingModalProps {
   orchard: Orchard;
@@ -43,8 +44,58 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
   const [offset, setOffset] = useState(0);
   const [start, setStart] = useState<string | null>(null);
   const [end, setEnd] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<OrchardAvailabilityResponse | null>(null);
+  const [rangeError, setRangeError] = useState('');
+
+  useEffect(() => {
+    if (orchard._id) {
+      availabilityService
+        .getAvailability(orchard._id)
+        .then(setAvailability)
+        .catch(() => {});
+    }
+  }, [orchard._id]);
+
+  // Check if a date string is unavailable due to booking or block
+  const isUnavailable = (dateObj: Date) => {
+    const t = dateObj.getTime();
+
+    if (availability?.bookedDates) {
+      for (const b of availability.bookedDates) {
+        const s = new Date(b.startDate).setHours(0, 0, 0, 0);
+        const e = new Date(b.endDate).setHours(0, 0, 0, 0);
+        if (t >= s && t < e) return true;
+      }
+    }
+
+    if (availability?.blockedDates) {
+      for (const b of availability.blockedDates) {
+        const s = new Date(b.startDate).setHours(0, 0, 0, 0);
+        const e = new Date(b.endDate).setHours(0, 0, 0, 0);
+        if (t >= s && t < e) return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Validate selected range does not span unavailable dates
+  const validateRange = (startStr: string, endStr: string) => {
+    const sDate = new Date(startStr);
+    const eDate = new Date(endStr);
+    let curr = new Date(sDate);
+
+    while (curr < eDate) {
+      if (isUnavailable(curr)) {
+        return false;
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+    return true;
+  };
 
   const pick = (d: string) => {
+    setRangeError('');
     if (!start || (start && end)) {
       setStart(d);
       setEnd(null);
@@ -53,6 +104,10 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
     } else if (d === start) {
       setEnd(null);
     } else {
+      if (!validateRange(start, d)) {
+        setRangeError('Selected range overlaps with unavailable/blocked dates.');
+        return;
+      }
       setEnd(d);
     }
   };
@@ -86,7 +141,7 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
           </div>
           <button
             onClick={onClose}
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-sand bg-cream text-sub"
+            className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-sand bg-cream text-sub hover:bg-chip"
           >
             <X className="h-4 w-4" />
           </button>
@@ -94,6 +149,13 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
 
         {/* calendar */}
         <div className="px-6 py-5">
+          {rangeError && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">
+              <AlertCircle className="h-4 w-4 text-red-600 flex-none" />
+              <span>{rangeError}</span>
+            </div>
+          )}
+
           <div className="mb-3.5 flex items-center justify-between">
             <button
               onClick={() => setOffset((o) => Math.max(0, o - 1))}
@@ -128,7 +190,7 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
                       const cellISO = iso(md.y, md.m, day);
                       const date = new Date(md.y, md.m, day);
                       const past = date < TODAY;
-                      const blocked = day % 9 === 0;
+                      const blocked = isUnavailable(date);
                       const disabled = past || blocked;
                       const isStart = cellISO === start;
                       const isEnd = cellISO === end;
@@ -142,7 +204,7 @@ export function BookingModal({ orchard, onClose, onConfirm, submitting }: Bookin
                             'flex h-[38px] select-none items-center justify-center rounded-[9px] text-[13px] transition-colors',
                             disabled ? 'cursor-not-allowed text-[#c4bda9]' : 'cursor-pointer',
                             sel ? 'bg-forest font-bold text-cream' : inRange ? 'bg-avail text-ink' : 'text-ink',
-                            blocked && !past && 'line-through',
+                            blocked && !past && 'bg-amber-50/60 text-amber-900 line-through font-semibold',
                             past && 'opacity-45'
                           )}
                         >

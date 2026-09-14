@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
+import { Search, LogOut, User as UserIcon, ChevronDown, Navigation, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useMarketplace } from '@/context/MarketplaceContext';
+import { useLocation } from '@/context/LocationContext';
 import { avatarGradient, initialsOf } from '@/lib/avatar';
 import { cn } from '@/lib/cn';
 
@@ -51,6 +52,7 @@ export function Navbar() {
   const isAdmin = role === 'admin';
 
   const handleLogout = async () => {
+    setMenuOpen(false);
     await logout();
     navigate('/');
   };
@@ -105,8 +107,15 @@ export function Navbar() {
                   <NavLink to="/bookings" className={navBtnFlex}>
                     Bookings <Badge count={bookingCount} tone="forest" />
                   </NavLink>
+                  <NavLink to="/lease-history" className={navBtn}>
+                    Lease History
+                  </NavLink>
+                  <NavLink to="/following" className={navBtn}>
+                    Following
+                  </NavLink>
                 </>
               )}
+              <LocationPill />
             </>
           )}
 
@@ -120,6 +129,12 @@ export function Navbar() {
               </NavLink>
               <NavLink to="/seller/bookings" className={navBtn}>
                 Bookings
+              </NavLink>
+              <NavLink to="/seller/lease-history" className={navBtn}>
+                Lease History
+              </NavLink>
+              <NavLink to="/seller/questions" className={navBtn}>
+                Q&A
               </NavLink>
             </>
           )}
@@ -144,7 +159,6 @@ export function Navbar() {
             <div className="relative ml-1.5">
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
                 className="flex items-center gap-1.5 rounded-full border border-sand bg-cream py-1 pl-1.5 pr-2.5"
               >
                 <span
@@ -157,31 +171,41 @@ export function Navbar() {
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-[46px] z-[60] w-[228px] animate-fadeup overflow-hidden rounded-[14px] border border-sand bg-cream shadow-card">
-                  <div className="flex items-center gap-2.5 border-b border-chip px-4 py-3.5">
-                    <span
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[13px] font-bold text-cream"
-                      style={{ background: avatarGradient(role) }}
-                    >
-                      {initialsOf(user.name)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold">{user.name}</div>
-                      <div className="text-[11.5px] capitalize text-faint">{role} account</div>
+                <>
+                  <div
+                    className="fixed inset-0 z-50 cursor-default"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-[46px] z-[60] w-[228px] animate-fadeup overflow-hidden rounded-[14px] border border-sand bg-cream shadow-card">
+                    <div className="flex items-center gap-2.5 border-b border-chip px-4 py-3.5">
+                      <span
+                        className="flex h-[38px] w-[38px] items-center justify-center rounded-full text-[13px] font-bold text-cream"
+                        style={{ background: avatarGradient(role) }}
+                      >
+                        {initialsOf(user.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold">{user.name}</div>
+                        <div className="text-[11.5px] capitalize text-faint">{role} account</div>
+                      </div>
                     </div>
+                    {!isAdmin && (
+                      <Link
+                        to={role === 'seller' ? '/seller/profile' : '/renter/profile'}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13.5px] font-semibold text-ink hover:bg-[#f4f0e3]"
+                      >
+                        <UserIcon className="h-4 w-4 text-sub" /> My profile
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2.5 border-t border-chip px-4 py-2.5 text-[13.5px] font-semibold text-[#a05a45] hover:bg-[#f7ece6]"
+                    >
+                      <LogOut className="h-4 w-4" /> Log out
+                    </button>
                   </div>
-                  {!isAdmin && (
-                    <Link to="/profile" className="flex items-center gap-2.5 px-4 py-2.5 text-[13.5px] font-semibold text-ink hover:bg-[#f4f0e3]">
-                      <UserIcon className="h-4 w-4 text-sub" /> My profile
-                    </Link>
-                  )}
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2.5 border-t border-chip px-4 py-2.5 text-[13.5px] font-semibold text-[#a05a45] hover:bg-[#f7ece6]"
-                  >
-                    <LogOut className="h-4 w-4" /> Log out
-                  </button>
-                </div>
+                </>
               )}
             </div>
           ) : (
@@ -202,3 +226,45 @@ export function Navbar() {
     </header>
   );
 }
+
+function LocationPill() {
+  const { userLocation, status, requestLocation, clearLocation } = useLocation();
+
+  if (userLocation) {
+    return (
+      <div
+        title="Location active — distances calculated automatically"
+        className="flex items-center gap-1.5 rounded-[9px] border border-avail bg-[#f2f7ef] px-2.5 py-1.5 text-[12px] font-bold text-forest"
+      >
+        <Navigation className="h-3.5 w-3.5 fill-forest text-forest" />
+        <span className="max-w-[110px] truncate">{userLocation.name || 'Near Location'}</span>
+        <button
+          type="button"
+          onClick={clearLocation}
+          title="Reset location"
+          className="ml-0.5 text-[10px] text-faint hover:text-terra font-normal"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={requestLocation}
+      disabled={status === 'locating'}
+      title="Enable location to view distances to orchards"
+      className="flex items-center gap-1.5 rounded-[9px] border border-sand bg-cream px-2.5 py-1.5 text-[12px] font-semibold text-sub hover:border-forest hover:text-forest transition-colors"
+    >
+      {status === 'locating' ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-forest" />
+      ) : (
+        <Navigation className="h-3.5 w-3.5 text-forest" />
+      )}
+      <span>{status === 'locating' ? 'Locating…' : 'Near me'}</span>
+    </button>
+  );
+}
+

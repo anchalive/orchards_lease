@@ -10,6 +10,9 @@ import NotFoundPage from '@/pages/NotFoundPage';
 import WishlistPage from '@/pages/renter/WishlistPage';
 import ComparePage from '@/pages/renter/ComparePage';
 import BookingsPage from '@/pages/renter/BookingsPage';
+import LeaseHistoryPage from '@/pages/renter/LeaseHistoryPage';
+import FollowingPage from '@/pages/renter/FollowingPage';
+import SellerProfilePage from '@/pages/SellerProfilePage';
 
 import AuthPage from '@/pages/auth/AuthPage';
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage';
@@ -18,13 +21,17 @@ import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import SellerOverview from '@/pages/seller/SellerOverview';
 import SellerOrchards from '@/pages/seller/SellerOrchards';
 import OrchardForm from '@/pages/seller/OrchardForm';
+import HarvestSchedulePage from '@/pages/seller/HarvestSchedulePage';
 import SellerBookings from '@/pages/seller/SellerBookings';
+import SellerLeaseHistory from '@/pages/seller/SellerLeaseHistory';
+import SellerQuestions from '@/pages/seller/SellerQuestions';
 
 import AdminOverview from '@/pages/admin/AdminOverview';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminModeration from '@/pages/admin/AdminModeration';
 import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 import AdminSystem from '@/pages/admin/AdminSystem';
+import AddImageForm from '@/components/AddImageForm';
 
 export default function App() {
   return (
@@ -41,7 +48,9 @@ export default function App() {
         <Route index element={<ExplorePage />} />
         <Route path="explore" element={<ExplorePage />} />
         <Route path="orchards/:slug" element={<OrchardDetailPage />} />
+        <Route path="sellers/:sellerId" element={<SellerProfilePage />} />
 
+        {/* Renter Specific Dashboard Routes */}
         <Route
           path="wishlist"
           element={
@@ -67,9 +76,27 @@ export default function App() {
           }
         />
         <Route
-          path="profile"
+          path="lease-history"
           element={
-            <ProtectedRoute roles={['renter', 'seller']}>
+            <ProtectedRoute roles={['renter']}>
+              <LeaseHistoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="following"
+          element={
+            <ProtectedRoute roles={['renter']}>
+              <FollowingPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Renter Specific Profile Navigation Target */}
+        <Route
+          path="renter/profile"
+          element={
+            <ProtectedRoute roles={['renter']}>
               <ProfilePage />
             </ProtectedRoute>
           }
@@ -88,7 +115,14 @@ export default function App() {
           <Route path="orchards" element={<SellerOrchards />} />
           <Route path="orchards/new" element={<OrchardForm />} />
           <Route path="orchards/:id/edit" element={<OrchardForm />} />
+          <Route path="orchards/:id/harvest" element={<HarvestSchedulePage />} />
+          <Route path="add-image" element={<AddImageForm />} />
           <Route path="bookings" element={<SellerBookings />} />
+          <Route path="lease-history" element={<SellerLeaseHistory />} />
+          <Route path="questions" element={<SellerQuestions />} />
+
+          {/* Seller Specific Profile Route (Resolves to /seller/profile) */}
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
 
         {/* Admin */}

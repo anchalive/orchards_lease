@@ -3,12 +3,16 @@ import { Heart, MapPin, Star, GitCompareArrows } from 'lucide-react';
 import { formatCurrency, titleCase } from '@/lib/format';
 import { orchardSurface } from '@/lib/gradients';
 import { cn } from '@/lib/cn';
+import { DistanceBadge } from './DistanceBadge';
 import type { Orchard } from '@/types';
+import { HarvestBadge } from './HarvestTimeline';
+import { FollowerBadge } from '../follow/FollowerBadge';
 
 interface OrchardCardProps {
   orchard: Orchard;
   isSaved?: boolean;
   isCompared?: boolean;
+  isFollowingSeller?: boolean;
   onToggleSave?: (id: string) => void;
   onToggleCompare?: (id: string) => void;
 }
@@ -17,6 +21,7 @@ export function OrchardCard({
   orchard,
   isSaved,
   isCompared,
+  isFollowingSeller,
   onToggleSave,
   onToggleCompare,
 }: OrchardCardProps) {
@@ -33,7 +38,9 @@ export function OrchardCard({
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(20,30,15,.42)]" />
 
         {/* badges */}
-        <div className="absolute left-3 top-3 flex gap-1.5">
+        <div className="absolute left-3 top-3 flex gap-1.5 flex-wrap">
+          {isFollowingSeller && <FollowerBadge size="sm" />}
+          <HarvestBadge harvestSeasons={orchard.harvestSeasons} />
           <span
             className={cn(
               'rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-[.02em]',
@@ -45,6 +52,22 @@ export function OrchardCard({
           {orchard.isFeatured && (
             <span className="rounded-full bg-gold px-2.5 py-1 text-[11.5px] font-bold text-cream">
               Featured
+            </span>
+          )}
+          {orchard.healthScore && (
+            <span
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11.5px] font-bold tracking-[.02em] border shadow-sm',
+                orchard.healthScore.score >= 90
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : orchard.healthScore.score >= 75
+                    ? 'bg-green-50 text-green-800 border-green-200'
+                    : orchard.healthScore.score >= 60
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-orange-50/70 text-terra border-orange-200'
+              )}
+            >
+              🌱 {orchard.healthScore.rating} {orchard.healthScore.score}/100
             </span>
           )}
         </div>
@@ -103,10 +126,13 @@ export function OrchardCard({
           )}
         </div>
 
-        <p className="mb-2.5 mt-1 flex items-center gap-1 text-[12.5px] text-faint">
-          <MapPin className="h-3 w-3" />
-          {orchard.district}, {orchard.state}
-        </p>
+        <div className="mb-2.5 mt-1 flex flex-wrap items-center justify-between gap-1 text-[12.5px]">
+          <span className="flex items-center gap-1 text-faint">
+            <MapPin className="h-3 w-3" />
+            {orchard.district}, {orchard.state}
+          </span>
+          <DistanceBadge orchard={orchard} variant="card" />
+        </div>
 
         <div className="mb-3 flex gap-3.5 text-xs text-sub">
           <span>🌳 {orchard.totalTrees} trees</span>

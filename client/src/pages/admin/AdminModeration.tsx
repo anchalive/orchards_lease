@@ -2,34 +2,49 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Star } from 'lucide-react';
 import { adminService } from '@/services/admin.service';
 import { orchardService } from '@/services/orchard.service';
+import { questionService } from '@/services/question.service';
+import { reviewService } from '@/services/review.service';
+import { StarRating } from '@/components/orchard/StarRating';
 import { Spinner } from '@/components/ui';
+
 import { useToast } from '@/context/ToastContext';
 import { orchardSurface } from '@/lib/gradients';
 import { timeAgo, titleCase } from '@/lib/format';
 import { getErrorMessage } from '@/lib/apiClient';
-import type { Orchard, User } from '@/types';
+import type { Orchard, User, Question } from '@/types';
 
 interface ReportedReview {
   _id: string;
+  rating?: number;
   comment: string;
   orchardId?: { gardenName: string };
   renterId?: { name: string };
+  isReported?: boolean;
+  isHidden?: boolean;
   createdAt: string;
 }
+
 
 export default function AdminModeration() {
   const toast = useToast();
   const [pending, setPending] = useState<Orchard[]>([]);
   const [reports, setReports] = useState<ReportedReview[]>([]);
+  const [reportedQuestions, setReportedQuestions] = useState<Question[]>([]);
   const [featured, setFeatured] = useState<Orchard[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
-    Promise.all([adminService.moderationQueue(), adminService.reportedReviews(), orchardService.getFeatured()])
-      .then(([p, r, f]) => {
+    Promise.all([
+      adminService.moderationQueue(),
+      adminService.reportedReviews(),
+      orchardService.getFeatured(),
+      questionService.listAllQuestions({ status: 'reported' }),
+    ])
+      .then(([p, r, f, q]) => {
         setPending(p);
         setReports(r as ReportedReview[]);
         setFeatured(f);
+        setReportedQuestions(q.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -103,27 +118,164 @@ export default function AdminModeration() {
 
           {/* Report queue */}
           <section className="rounded-[18px] border border-sand bg-cream p-[22px]">
-            <h2 className="mb-3.5 font-serif text-[18px] font-semibold">Report queue</h2>
+            <h2 className="mb-3.5 font-serif text-[18px] font-semibold">Reported Reviews Queue</h2>
             {reports.length === 0 ? (
-              <p className="py-4 text-center text-sm text-faint">No open reports.</p>
+              <p className="py-4 text-center text-sm text-faint">No open reported reviews.</p>
             ) : (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 {reports.map((r) => (
-                  <div key={r._id} className="flex items-center gap-3.5 rounded-xl bg-[#faf7ee] px-3.5 py-3">
-                    <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] bg-[#f3e7e1]">
-                      <AlertTriangle className="h-[17px] w-[17px] text-[#a05a45]" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-bold">{r.orchardId?.gardenName || 'Orchard'}</div>
-                      <div className="truncate text-xs text-faint">
-                        Reported review · {r.renterId?.name} · {timeAgo(r.createdAt)}
+                  <div key={r._id} className="rounded-xl border border-sand bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-ink">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span>{r.orchardId?.gardenName || 'Orchard'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {r.rating && <StarRating value={r.rating} size="sm" />}
+                        <span className="text-[11px] text-faint">{timeAgo(r.createdAt)}</span>
                       </div>
                     </div>
-                    <button className="flex-none rounded-lg border border-sand bg-white px-2.5 py-[7px] text-xs font-semibold text-ink">
-                      Review
-                    </button>
+                    <p className="text-xs text-sub mb-3 italic">"{r.comment}"</p>
+                    <div className="text-[11px] text-faint mb-3">By: {r.renterId?.name || 'Renter'}</div>
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-chip">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await reviewService.moderateReview(r._id, 'dismiss');
+                            toast.success('Report dismissed');
+                            load();
+                          } catch (err) {
+                            toast.error(getErrorMessage(err));
+                          }
+                        }}
+                        className="rounded-lg border border-sand bg-cream px-3 py-1 text-xs font-bold text-forest hover:border-forest"
+                      >
+                        Dismiss Report
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await reviewService.moderateReview(r._id, r.isHidden ? 'unhide' : 'hide');
+                            toast.success(r.isHidden ? 'Review unhidden' : 'Review hidden');
+                            load();
+                          } catch (err) {
+                            toast.error(getErrorMessage(err));
+                          }
+                        }}
+                        className="rounded-lg border border-sand bg-white px-3 py-1 text-xs font-bold text-ink hover:bg-chip"
+                      >
+                        {r.isHidden ? 'Unhide' : 'Hide Review'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (window.confirm('Permanently delete this reported review?')) {
+                            try {
+                              await reviewService.moderateReview(r._id, 'delete');
+                              toast.success('Review deleted');
+                              load();
+                            } catch (err) {
+                              toast.error(getErrorMessage(err));
+                            }
+                          }
+                        }}
+                        className="rounded-lg bg-[#f3e7e1] px-3 py-1 text-xs font-bold text-[#a05a45] hover:bg-[#ecd9d0]"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+
+
+          {/* Reported Q&A Queue */}
+          <section className="rounded-[18px] border border-sand bg-cream p-[22px]">
+            <h2 className="mb-3.5 font-serif text-[18px] font-semibold">Reported Q&amp;A Queue</h2>
+            {reportedQuestions.length === 0 ? (
+              <p className="py-4 text-center text-sm text-faint">No reported questions or answers.</p>
+            ) : (
+              <div className="flex flex-col gap-3.5">
+                {reportedQuestions.map((q) => {
+                  const orchardName = typeof q.orchard === 'object' ? q.orchard.gardenName : 'Orchard';
+                  return (
+                    <div key={q._id} className="rounded-xl border border-sand bg-white p-4.5 shadow-sm">
+                      <div className="mb-2 flex items-center justify-between text-xs text-faint font-semibold">
+                        <span className="font-bold text-forest">{orchardName}</span>
+                        <span>Asked by {q.askedBy?.name}</span>
+                      </div>
+                      
+                      {/* Question Content */}
+                      <div className="mb-2.5">
+                        <div className="text-[10px] font-bold text-faint uppercase tracking-wider mb-0.5">Question:</div>
+                        <p className="text-sm font-semibold text-ink leading-relaxed">{q.question}</p>
+                      </div>
+
+                      {/* Reply Content */}
+                      {q.answer && (
+                        <div className="mb-2.5 border-l-2 border-sand pl-3.5 py-0.5">
+                          <div className="text-[10px] font-bold text-faint uppercase tracking-wider mb-0.5">Seller Reply:</div>
+                          <p className="text-sm text-sub leading-relaxed">{q.answer}</p>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-2 border-t border-chip pt-2.5 mt-2.5">
+                        <button
+                          onClick={async () => {
+                            if (window.confirm('Delete this entire question?')) {
+                              try {
+                                await questionService.deleteQuestion(q._id);
+                                toast.success('Question deleted');
+                                load();
+                              } catch (err) {
+                                toast.error(getErrorMessage(err));
+                              }
+                            }
+                          }}
+                          className="rounded-lg bg-[#f3e7e1] px-3.5 py-1.5 text-[11.5px] font-bold text-[#a05a45] hover:bg-[#ecd9d0]"
+                        >
+                          Delete Question
+                        </button>
+                        
+                        {q.answer && (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Delete/clear the seller reply?')) {
+                                try {
+                                  await questionService.deleteAnswer(q._id);
+                                  toast.success('Seller reply cleared');
+                                  load();
+                                } catch (err) {
+                                  toast.error(getErrorMessage(err));
+                                }
+                              }
+                            }}
+                            className="rounded-lg bg-chip px-3.5 py-1.5 text-[11.5px] font-bold text-ink hover:bg-sand"
+                          >
+                            Delete Reply Only
+                          </button>
+                        )}
+                        
+                        <button
+                          onClick={async () => {
+                            try {
+                              await questionService.dismissReport(q._id);
+                              toast.success('Report dismissed');
+                              load();
+                            } catch (err) {
+                              toast.error(getErrorMessage(err));
+                            }
+                          }}
+                          className="ml-auto rounded-lg border border-sand bg-cream px-3.5 py-1.5 text-[11.5px] font-bold text-forest hover:border-forest"
+                        >
+                          Dismiss Report
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

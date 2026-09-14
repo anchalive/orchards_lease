@@ -8,22 +8,25 @@ import Orchard from '../models/Orchard.js';
 import Wishlist from '../models/Wishlist.js';
 import Setting from '../models/Setting.js';
 import { uploadMany } from '../services/upload.service.js';
+import { notifyFollowersOfOrchard } from '../services/follow.service.js';
 
 const EDITABLE_FIELDS = [
   'gardenName', 'description', 'district', 'state', 'country', 'latitude', 'longitude',
   'address', 'fruitTypes', 'totalTrees', 'averageFruitPerTree', 'expectedYield',
   'estimatedHarvestDate', 'totalArea', 'areaUnit', 'rentType', 'price', 'pricingRules',
   'images', 'thumbnail', 'amenities', 'available', 'seo',
+  'soilFertility', 'waterSourceQuality', 'pestHistory', 'diseaseHistory',
+  'maintenanceStatus', 'orchardAge', 'harvestSeasons',
 ];
 
 const SORT_MAP = {
-  newest: { createdAt: -1 },
-  oldest: { createdAt: 1 },
-  price_asc: { price: 1 },
+  newest:     { createdAt: -1 },
+  oldest:     { createdAt: 1 },
+  price_asc:  { price: 1 },
   price_desc: { price: -1 },
-  rating: { ratingAverage: -1 },
-  popular: { viewCount: -1 },
-  yield: { expectedYield: -1 },
+  rating:     { ratingAverage: -1 },
+  popular:    { viewCount: -1 },
+  yield:      { expectedYield: -1 },
 };
 
 /* ----------------------- Build public filter ----------------------- */
@@ -31,12 +34,115 @@ const buildPublicFilter = (q = {}) => {
   const filter = { status: ORCHARD_STATUS.PUBLISHED, deletedAt: null };
 
   if (q.search) filter.$text = { $search: q.search };
+  
   const fruits = toArray(q.fruit);
-  if (fruits) filter.fruitTypes = { $in: fruits };
-  if (q.state) filter.state = new RegExp(`^${q.state}$`, 'i');
-  if (q.district) filter.district = new RegExp(`^${q.district}$`, 'i');
-  if (q.available !== undefined) filter.available = q.available;
-  if (q.featured !== undefined) filter.isFeatured = q.featured;
+  if (fruits) {
+    const fruitRegexes = fruits.map((f) => new RegExp(`^${f.trim()}$`, 'i'));
+    filter.$or = [
+      { fruitTypes: { $in: fruits } },
+      { 'harvestSeasons.fruitName': { $in: fruitRegexes } },
+    ];
+  }
+  
+  if (q.state)    filter.state    = new RegExp(`^${q.state}$`, 'i');
+  if (q.district) filter.district = new RegExp(q.district.trim(), 'i');
+  if (q.available !== undefined) filter.available  = q.available;
+  if (q.featured  !== undefined) filter.isFeatured = q.featured;
+  if (q.sellerId) filter.sellerId = q.sellerId;
+
+  // Rent type: "season" | "month" | "year" | "harvest"
+  if (q.rentType) filter.rentType = q.rentType;
+
+  if (q.harvestThisMonth) {
+    const currentMonth = new Date().getMonth() + 1;
+    filter.$expr = {
+      $anyElementTrue: {
+        $map: {
+          input: { $ifNull: ['$harvestSeasons', []] },
+          as: 'season',
+          in: {
+            $or: [
+              {
+                $and: [
+                  { $lte: ['$$season.startMonth', '$$season.endMonth'] },
+                  { $lte: ['$$season.startMonth', currentMonth] },
+                  { $gte: ['$$season.endMonth', currentMonth] },
+                ],
+              },
+              {
+                $and: [
+                  { $gt: ['$$season.startMonth', '$$season.endMonth'] },
+                  {
+                    $or: [
+                      { $lte: ['$$season.startMonth', currentMonth] },
+                      { $gte: ['$$season.endMonth', currentMonth] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+  }
+
+  if (q.upcomingHarvest) {
+    const currentMonth = new Date().getMonth() + 1;
+    const upcomingMonths = [
+      (currentMonth % 12) + 1,
+      ((currentMonth + 1) % 12) + 1,
+      ((currentMonth + 2) % 12) + 1,
+    ];
+    filter['harvestSeasons.startMonth'] = { $in: upcomingMonths };
+  }
+
+  if (q.peakSeason) {
+    const currentMonth = new Date().getMonth() + 1;
+    const peakExpr = {
+      $anyElementTrue: {
+        $map: {
+          input: { $ifNull: ['$harvestSeasons', []] },
+          as: 'season',
+          in: {
+            $or: [
+              {
+                $and: [
+                  { $lte: ['$$season.peakStartMonth', '$$season.peakEndMonth'] },
+                  { $lte: ['$$season.peakStartMonth', currentMonth] },
+                  { $gte: ['$$season.peakEndMonth', currentMonth] },
+                ],
+              },
+              {
+                $and: [
+                  { $gt: ['$$season.peakStartMonth', '$$season.peakEndMonth'] },
+                  {
+                    $or: [
+                      { $lte: ['$$season.peakStartMonth', currentMonth] },
+                      { $gte: ['$$season.peakEndMonth', currentMonth] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    if (filter.$expr) {
+      filter.$expr = { $and: [filter.$expr, peakExpr] };
+    } else {
+      filter.$expr = peakExpr;
+    }
+  }
+
+
+  // Amenities: comma-separated — orchard must have ALL selected ($all)
+  if (q.amenities) {
+    const amenityList = q.amenities.split(',').map((a) => a.trim()).filter(Boolean);
+    if (amenityList.length) filter.amenities = { $all: amenityList };
+  }
 
   if (q.minPrice != null || q.maxPrice != null) {
     filter.price = {};
@@ -53,8 +159,8 @@ const buildPublicFilter = (q = {}) => {
     if (q.minArea != null) filter.totalArea.$gte = q.minArea;
     if (q.maxArea != null) filter.totalArea.$lte = q.maxArea;
   }
-  if (q.minYield != null) filter.expectedYield = { $gte: q.minYield };
-  if (q.rating != null) filter.ratingAverage = { $gte: q.rating };
+  if (q.minYield != null) filter.expectedYield  = { $gte: q.minYield };
+  if (q.rating   != null) filter.ratingAverage  = { $gte: q.rating };
 
   return filter;
 };
@@ -100,9 +206,7 @@ export const getOrchardBySlug = asyncHandler(async (req, res) => {
     if (req.user && req.user.role === ROLES.RENTER) {
       await Wishlist.findOneAndUpdate(
         { user: req.user._id },
-        {
-          $pull: { recentlyViewed: { orchard: orchard._id } },
-        },
+        { $pull: { recentlyViewed: { orchard: orchard._id } } },
         { upsert: true }
       );
       await Wishlist.updateOne(
@@ -162,6 +266,9 @@ export const createOrchard = asyncHandler(async (req, res) => {
   }
 
   const orchard = await Orchard.create(data);
+  if (orchard.status === ORCHARD_STATUS.PUBLISHED) {
+    notifyFollowersOfOrchard({ sellerId: req.user._id, orchard, isNew: true });
+  }
   return created(res, orchard, 'Orchard created');
 });
 
@@ -181,6 +288,11 @@ export const updateOrchard = asyncHandler(async (req, res) => {
   Object.assign(orchard, updates);
   if (!orchard.thumbnail && orchard.images?.length) orchard.thumbnail = orchard.images[0].url;
   await orchard.save();
+
+  if (orchard.status === ORCHARD_STATUS.PUBLISHED) {
+    notifyFollowersOfOrchard({ sellerId: orchard.sellerId, orchard, isNew: false });
+  }
+
   return ok(res, orchard, 'Orchard updated');
 });
 
@@ -238,6 +350,11 @@ export const setOrchardStatus = (targetStatus) =>
     }
 
     await orchard.save();
+
+    if (orchard.status === ORCHARD_STATUS.PUBLISHED) {
+      notifyFollowersOfOrchard({ sellerId: orchard.sellerId, orchard, isNew: true });
+    }
+
     return ok(res, orchard, `Orchard ${targetStatus} done`);
   });
 

@@ -1,22 +1,56 @@
 import { useEffect, useState } from 'react';
-import { Phone, Globe, CalendarDays, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  Phone,
+  Globe,
+  CalendarDays,
+  Check,
+  Clock,
+  Star,
+  MessageSquare,
+  UserCheck,
+  Calendar,
+  Sparkles,
+  ArrowRight,
+  Eye,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useMarketplace } from '@/context/MarketplaceContext';
 import { userService } from '@/services/user.service';
 import { sellerService } from '@/services/seller.service';
+import { wishlistService } from '@/services/wishlist.service';
+import { recommendationService } from '@/services/recommendation.service';
 import { Toggle } from '@/components/ui/Toggle';
+import { RecommendedSection } from '@/components/recommendation/RecommendedSection';
 import { getErrorMessage } from '@/lib/apiClient';
 import { avatarGradient, initialsOf } from '@/lib/avatar';
 import { formatDate, formatCurrency, timeAgo } from '@/lib/format';
-import type { NotificationSettings } from '@/types';
+import type { NotificationSettings, Orchard, RecommendationItem } from '@/types';
 
 interface Activity {
   type: string;
+  action?: string;
   title: string;
-  detail: string;
+  detail?: string;
+  link?: string;
   at: string;
 }
+
+const getActivityIcon = (type: string) => {
+  switch (type) {
+    case 'booking':
+      return <Calendar className="h-4 w-4 text-forest" />;
+    case 'review':
+      return <Star className="h-4 w-4 text-amber-500" />;
+    case 'follow':
+      return <UserCheck className="h-4 w-4 text-blue-500" />;
+    case 'question':
+      return <MessageSquare className="h-4 w-4 text-purple-500" />;
+    default:
+      return <Clock className="h-4 w-4 text-emerald-600" />;
+  }
+};
 
 const NOTIF_ROWS: { key: keyof NotificationSettings; title: string; desc: string }[] = [
   { key: 'emailBookings', title: 'Booking alerts', desc: 'Status changes on your lease requests.' },
@@ -37,6 +71,10 @@ export default function ProfilePage() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [sellerStats, setSellerStats] = useState<{ orchards: number; revenue: number; rating: number } | null>(null);
 
+  const [recentlyViewed, setRecentlyViewed] = useState<Orchard[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
+
   useEffect(() => {
     if (user) {
       setForm({ bio: user.bio || '', phone: user.phone || '', language: user.language || 'English' });
@@ -56,6 +94,14 @@ export default function ProfilePage() {
         .overview()
         .then((o) => setSellerStats({ orchards: o.totalOrchards, revenue: o.revenue, rating: 0 }))
         .catch(() => {});
+    } else {
+      wishlistService.getRecentlyViewed().then(setRecentlyViewed).catch(() => {});
+      setRecLoading(true);
+      recommendationService
+        .getPersonalized({ limit: 3 })
+        .then((res) => setRecommendations(res.recommendations || []))
+        .catch(() => {})
+        .finally(() => setRecLoading(false));
     }
   }, [user, isSeller]);
 
@@ -104,8 +150,49 @@ export default function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-[1080px] px-6 pb-16 pt-6">
-      <div className="relative h-32 overflow-hidden rounded-3xl" style={{ background: cover }}>
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 86% 30%,rgba(201,138,43,.3),transparent 44%)' }} />
+      <div
+        className="relative min-h-[135px] overflow-hidden rounded-3xl p-5 sm:px-8 sm:py-6 flex flex-wrap items-center justify-between gap-4"
+        style={{ background: cover }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(circle at 86% 30%,rgba(201,138,43,.3),transparent 44%)' }}
+        />
+        {!isSeller && (
+          <div className="relative z-10 flex flex-wrap items-center gap-4 w-full justify-end pr-2 text-cream">
+            {recentlyViewed.length > 0 ? (
+              <div className="flex items-center gap-3 bg-black/25 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15 shadow-sm max-w-sm sm:max-w-md">
+                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-white/10">
+                  <Eye className="h-4 w-4 text-cream" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-cream/70 flex items-center gap-1">
+                    <span>Last Viewed Orchard</span>
+                  </div>
+                  <div className="text-sm font-bold truncate text-cream">
+                    {recentlyViewed[0].gardenName}
+                  </div>
+                </div>
+                {recentlyViewed[0].slug && (
+                  <Link
+                    to={`/orchards/${recentlyViewed[0].slug}`}
+                    className="flex-none rounded-xl bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-bold text-cream transition-colors flex items-center gap-1"
+                  >
+                    Resume <ArrowRight className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15 text-xs font-medium text-cream/90">
+                <Sparkles className="h-4 w-4 text-amber-300" />
+                <span>Explore marketplace to start tracking your recent activity</span>
+                <Link to="/explore" className="underline font-bold ml-1 hover:text-white">
+                  Explore now
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="-mt-[46px] mb-[22px] flex flex-wrap items-end gap-[18px] px-2">
@@ -259,19 +346,50 @@ export default function ProfilePage() {
             </section>
           ) : (
             <section className="rounded-2xl border border-sand bg-cream p-[22px]">
-              <h2 className="mb-[18px] font-serif text-[18px] font-semibold">Recent activity</h2>
-              <div className="flex flex-col">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-serif text-[18px] font-semibold text-ink">Recent activity</h2>
+                {activity.length > 0 && (
+                  <span className="text-xs font-bold text-faint bg-paper px-2 py-0.5 rounded-full border border-sand/60">
+                    Last 20
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col divide-y divide-chip/60">
                 {activity.length === 0 ? (
-                  <p className="pb-4 text-sm text-faint">No recent activity yet.</p>
+                  <div className="py-6 text-center">
+                    <Clock className="mx-auto h-6 w-6 text-faint/60 mb-2" />
+                    <p className="text-sm font-medium text-ink">No activity recorded yet</p>
+                    <p className="text-xs text-faint mt-0.5">Your bookings, reviews, and saves will show here.</p>
+                  </div>
                 ) : (
-                  activity.slice(0, 6).map((t, i) => (
-                    <div key={i} className="flex gap-3 pb-[18px]">
-                      <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-avail">
-                        <span className="h-2.5 w-2.5 rounded-full bg-forest" />
+                  activity.slice(0, 8).map((t, i) => (
+                    <div key={i} className="flex gap-3.5 py-3.5 first:pt-0 last:pb-2">
+                      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-paper border border-sand/60 shadow-2xs">
+                        {getActivityIcon(t.type)}
                       </span>
-                      <div className="pt-0.5">
-                        <div className="text-[13.5px] font-semibold leading-snug text-ink">{t.title}</div>
-                        <div className="mt-0.5 text-xs text-faint">{timeAgo(t.at)}</div>
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <div className="flex items-start justify-between gap-2">
+                          {t.link ? (
+                            <Link
+                              to={t.link}
+                              className="text-[13.5px] font-semibold leading-snug text-ink hover:text-forest transition-colors line-clamp-1"
+                            >
+                              {t.title}
+                            </Link>
+                          ) : (
+                            <div className="text-[13.5px] font-semibold leading-snug text-ink line-clamp-1">
+                              {t.title}
+                            </div>
+                          )}
+                          <span className="text-[11px] font-medium text-faint whitespace-nowrap mt-0.5">
+                            {timeAgo(t.at)}
+                          </span>
+                        </div>
+                        {t.detail && (
+                          <div className="mt-1 text-xs text-sub line-clamp-2 bg-paper/50 rounded-lg px-2.5 py-1.5 border border-chip/50">
+                            {t.detail}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))
@@ -279,7 +397,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={logout}
-                className="mt-1 w-full rounded-[11px] bg-[#f7ece6] py-3 text-[13.5px] font-bold text-[#a05a45]"
+                className="mt-4 w-full rounded-[11px] bg-[#f7ece6] py-3 text-[13.5px] font-bold text-[#a05a45] hover:bg-[#ebdcd3] transition-colors"
               >
                 Log out
               </button>
@@ -287,6 +405,83 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {!isSeller && (
+        <div className="mt-10 space-y-10 border-t border-sand/80 pt-8">
+          {/* Recently Viewed Section */}
+          {recentlyViewed.length > 0 && (
+            <section>
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-forest mb-1">
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>Browsing History</span>
+                  </div>
+                  <h2 className="font-serif text-2xl font-bold text-ink">Recently Viewed Orchards</h2>
+                </div>
+                <Link to="/explore" className="text-xs font-bold text-forest hover:underline flex items-center gap-1">
+                  View marketplace <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {recentlyViewed.slice(0, 3).map((orchard) => (
+                  <Link
+                    key={orchard._id}
+                    to={`/orchards/${orchard.slug || ''}`}
+                    className="group flex gap-3.5 rounded-2xl border border-sand bg-cream p-3 hover:border-forest/40 hover:shadow-md transition-all"
+                  >
+                    <div className="h-20 w-20 flex-none overflow-hidden rounded-xl bg-sand/30">
+                      <img
+                        src={orchard.thumbnail || '/placeholder-orchard.jpg'}
+                        alt={orchard.gardenName}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 flex flex-col justify-center">
+                      <div className="text-xs font-semibold text-faint truncate">
+                        {orchard.district}, {orchard.state}
+                      </div>
+                      <div className="font-serif text-base font-bold text-ink truncate group-hover:text-forest transition-colors">
+                        {orchard.gardenName}
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-sm font-bold text-terra">
+                          {formatCurrency(orchard.price || 0)}
+                          <span className="text-[10px] font-normal text-faint">/yr</span>
+                        </span>
+                        {orchard.ratingAverage ? (
+                          <span className="flex items-center gap-1 text-xs font-bold text-ink">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                            {orchard.ratingAverage}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* AI Personalized Recommendations Based on Activity */}
+          <RecommendedSection
+            title="Recommended Based On Your Activity"
+            subtitle="Smart personalized orchard matches derived from your recent bookings, views, and wishlist."
+            items={recommendations}
+            isLoading={recLoading}
+            onRetry={() => {
+              setRecLoading(true);
+              recommendationService
+                .getPersonalized({ limit: 3 })
+                .then((res) => setRecommendations(res.recommendations || []))
+                .catch(() => {})
+                .finally(() => setRecLoading(false));
+            }}
+            maxItems={3}
+            badgeText="Activity-Based AI Picks"
+          />
+        </div>
+      )}
     </main>
   );
 }

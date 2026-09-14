@@ -94,6 +94,25 @@ const run = async () => {
     ];
     const status = rand(statuses);
 
+    const SEEDED_HARVESTS = {
+      mango: { startMonth: 4, peakStartMonth: 5, peakEndMonth: 6, endMonth: 7 },
+      litchi: { startMonth: 5, peakStartMonth: 5, peakEndMonth: 6, endMonth: 6 },
+      apple: { startMonth: 8, peakStartMonth: 8, peakEndMonth: 9, endMonth: 10 },
+      orange: { startMonth: 11, peakStartMonth: 12, peakEndMonth: 1, endMonth: 2 },
+      grapes: { startMonth: 1, peakStartMonth: 2, peakEndMonth: 3, endMonth: 4 },
+      pomegranate: { startMonth: 9, peakStartMonth: 10, peakEndMonth: 12, endMonth: 2 },
+      banana: { startMonth: 1, peakStartMonth: 4, peakEndMonth: 9, endMonth: 12 },
+    };
+
+    const uniqueFruits = [...new Set(fruits)];
+    const harvestSeasons = uniqueFruits.map((f) => {
+      const configVal = SEEDED_HARVESTS[f.toLowerCase()] || { startMonth: 6, peakStartMonth: 7, peakEndMonth: 8, endMonth: 9 };
+      return {
+        fruitName: f,
+        ...configVal,
+      };
+    });
+
     // eslint-disable-next-line no-await-in-loop
     const orchard = await Orchard.create({
       sellerId: seller._id,
@@ -106,7 +125,8 @@ const run = async () => {
       latitude: 18 + Math.random() * 15,
       longitude: 72 + Math.random() * 12,
       address: `${randInt(1, 200)}, ${district} rural area`,
-      fruitTypes: [...new Set(fruits)],
+      fruitTypes: uniqueFruits,
+      harvestSeasons,
       totalTrees: trees,
       averageFruitPerTree: randInt(20, 200),
       expectedYield: trees * randInt(20, 100),
@@ -191,8 +211,6 @@ const run = async () => {
   console.log('Renter login:  renter1@orchardlease.com / Password123');
   console.log('--------------------------------------------------');
 
-  await disconnectDB();
-  await mongoose.connection.close();
   process.exit(0);
 };
 
