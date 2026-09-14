@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthFailureHandler(handleAuthFailure);
   }, [handleAuthFailure]);
 
-    // Bootstrap: try to refresh the session on first load
+  // Bootstrap: try to refresh the session on first load
   useEffect(() => {
     (async () => {
       try {
