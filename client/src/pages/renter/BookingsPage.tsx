@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Calendar, History } from 'lucide-react';
+import { RefreshCw, Calendar, History, CreditCard } from 'lucide-react';
 import { bookingService } from '@/services/booking.service';
 import { recommendationService } from '@/services/recommendation.service';
 import { useToast } from '@/context/ToastContext';
@@ -8,6 +8,7 @@ import { RenewalModal } from '@/components/orchard/RenewalModal';
 import { RecommendedSection } from '@/components/recommendation/RecommendedSection';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { getErrorMessage } from '@/lib/apiClient';
+import { paymentService } from '@/services/payment.service';
 import type { Booking, Orchard, RecommendationItem } from '@/types';
 
 export default function BookingsPage() {
@@ -16,6 +17,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedForRenewal, setSelectedForRenewal] = useState<Booking | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [recLoading, setRecLoading] = useState(true);
@@ -56,6 +58,24 @@ export default function BookingsPage() {
       toast.error(getErrorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePayment = async (booking: Booking) => {
+    const amount = booking.bookingStatus === 'requested'
+      ? Math.max(0, (booking.advanceAmount || 0) - (booking.amountPaid || 0))
+      : booking.remainingAmount || 0;
+    if (!amount) return;
+    setPayingId(booking._id);
+    try {
+      const order = await paymentService.initialize(booking._id, 'UPI', amount);
+      await paymentService.verify(order.paymentId);
+      toast.success('Payment recorded successfully.');
+      fetchBookings();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -121,6 +141,7 @@ export default function BookingsPage() {
                       {formatCurrency(b.totalAmount)}
                     </span>
                     <span className="text-xs text-faint block">Total Paid / Agreed</span>
+                    <div className="mt-1 text-xs text-sub">Paid: {formatCurrency(b.amountPaid || 0)} · Balance: {formatCurrency(b.remainingAmount || 0)}</div>
                   </div>
                 </div>
 
@@ -136,6 +157,18 @@ export default function BookingsPage() {
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-3">
+                    {((b.bookingStatus === 'requested' && (b.advanceAmount || 0) > (b.amountPaid || 0)) ||
+                      (b.bookingStatus === 'approved' && (b.remainingAmount || 0) > 0)) && (
+                      <Button
+                        size="sm"
+                        disabled={payingId === b._id}
+                        onClick={() => handlePayment(b)}
+                        className="bg-terra text-white hover:bg-terra/90"
+                      >
+                        <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                        {payingId === b._id ? 'Processing…' : `Pay ${formatCurrency(b.bookingStatus === 'requested' ? Math.max(0, (b.advanceAmount || 0) - (b.amountPaid || 0)) : (b.remainingAmount || 0))}`}
+                      </Button>
+                    )}
                     {/* Lease Renewal Action Button (Issue #27) */}
                     {isApproved && (
                       <Button

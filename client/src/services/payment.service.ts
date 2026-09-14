@@ -1,5 +1,6 @@
 import apiClient from '@/lib/apiClient';
 import type { ApiResponse } from '@/types';
+import type { Booking } from '@/types';
 
 export interface PaymentRecord {
   _id: string;
@@ -7,6 +8,7 @@ export interface PaymentRecord {
   payerId: string;
   recipientId: string;
   amount: number;
+  paymentType: 'ADVANCE' | 'BALANCE' | 'PARTIAL';
   currency: string;
   paymentGateway: string;
   paymentMethod: 'CARD' | 'UPI' | 'NET_BANKING' | 'WALLET' | 'OTHER';
@@ -31,19 +33,22 @@ export interface PaymentHistoryResponse {
 }
 
 export const paymentService = {
-  async initialize(bookingId: string, paymentMethod: string = 'UPI') {
+  async initialize(bookingId: string, paymentMethod: string = 'UPI', amount?: number) {
     const { data } = await apiClient.post<ApiResponse<{
       paymentId: string;
       transactionId: string;
       amount: number;
       currency: string;
       receiptNumber: string;
-    }>>('/payments/initialize', { bookingId, paymentMethod });
+      paymentType: PaymentRecord['paymentType'];
+      amountDueNow: number;
+      remainingAmount: number;
+    }>>('/payments/initialize', { bookingId, paymentMethod, amount });
     return data.data;
   },
 
   async verify(paymentId: string, status: 'SUCCESS' | 'FAILED' = 'SUCCESS', failureReason?: string) {
-    const { data } = await apiClient.post<ApiResponse<PaymentRecord>>('/payments/verify', {
+    const { data } = await apiClient.post<ApiResponse<{ payment: PaymentRecord; booking: Booking }>>('/payments/verify', {
       paymentId,
       status,
       failureReason,

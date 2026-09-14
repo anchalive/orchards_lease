@@ -131,6 +131,36 @@ export default function AdminSystem() {
                 on={local.guestBrowse}
                 onClick={() => setLocal((l) => ({ ...l, guestBrowse: !l.guestBrowse }))}
               />
+              <div className="border-t border-chip py-[13px]">
+                <div className="text-sm font-semibold">Advance payment</div>
+                <div className="mt-1 text-[12.5px] text-faint">Required before a seller can activate a lease</div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <label className="text-xs font-semibold text-sub">
+                    Advance percentage
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={settings.advancePaymentPercent}
+                      onChange={(e) => setSettings({ ...settings, advancePaymentPercent: Number(e.target.value) })}
+                      onBlur={() => patch({ advancePaymentPercent: settings.advancePaymentPercent }, 'Advance rule updated')}
+                      className="mt-1 w-full rounded-lg border border-sand bg-white px-3 py-2 text-sm text-ink outline-none"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-sub">
+                    Balance due days before start
+                    <input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={settings.balanceDueDaysBeforeLease}
+                      onChange={(e) => setSettings({ ...settings, balanceDueDaysBeforeLease: Number(e.target.value) })}
+                      onBlur={() => patch({ balanceDueDaysBeforeLease: settings.balanceDueDaysBeforeLease }, 'Due-date rule updated')}
+                      className="mt-1 w-full rounded-lg border border-sand bg-white px-3 py-2 text-sm text-ink outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
           </section>
         </div>

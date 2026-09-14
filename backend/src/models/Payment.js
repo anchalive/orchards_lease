@@ -24,6 +24,11 @@ const paymentSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    paymentType: {
+      type: String,
+      enum: ['ADVANCE', 'BALANCE', 'PARTIAL'],
+      default: 'ADVANCE',
+    },
     currency: {
       type: String,
       default: 'INR',

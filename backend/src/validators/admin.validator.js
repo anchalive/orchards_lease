@@ -22,6 +22,8 @@ export const settingsSchema = {
     featuredLimit: z.number().int().min(0).max(100).optional(),
     supportEmail: z.string().email().optional(),
     commissionPercent: z.number().min(0).max(100).optional(),
+    advancePaymentPercent: z.number().min(0).max(100).optional(),
+    balanceDueDaysBeforeLease: z.number().int().min(0).max(365).optional(),
   }),
 };
 

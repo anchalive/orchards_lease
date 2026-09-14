@@ -70,6 +70,8 @@ export interface PlatformSettings {
   featuredLimit: number;
   supportEmail: string;
   commissionPercent: number;
+  advancePaymentPercent: number;
+  balanceDueDaysBeforeLease: number;
 }
 
 export const adminService = {

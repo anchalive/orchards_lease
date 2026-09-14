@@ -38,6 +38,7 @@ export const OCCUPANCY_STATUS = Object.freeze({
 export const PAYMENT_STATUS = Object.freeze({
   UNPAID: 'unpaid',
   PENDING: 'pending',
+  PARTIAL: 'partial',
   PAID: 'paid',
   REFUNDED: 'refunded',
 });

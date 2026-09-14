@@ -5,15 +5,30 @@ import ApiError from '../utils/ApiError.js';
 import { ok, created } from '../utils/ApiResponse.js';
 import { notify } from '../services/notification.service.js';
 import { NOTIFICATION_TYPE, BOOKING_STATUS } from '../utils/constants.js';
+import { calculatePaymentSchedule } from '../utils/paymentSchedule.js';
 
 export const initializePayment = asyncHandler(async (req, res) => {
-  const { bookingId, paymentMethod = 'UPI' } = req.body;
+  const { bookingId, paymentMethod = 'UPI', amount } = req.body;
 
   const booking = await Booking.findById(bookingId).populate('orchardId', 'gardenName');
   if (!booking) throw ApiError.notFound('Booking not found');
 
   if (String(booking.renterId) !== String(req.user._id)) {
     throw ApiError.forbidden('Only the renter can initialize payment for this lease');
+  }
+
+  if ([BOOKING_STATUS.REJECTED, BOOKING_STATUS.CANCELLED, BOOKING_STATUS.COMPLETED].includes(booking.bookingStatus)) {
+    throw ApiError.badRequest('Payments are not available for this booking');
+  }
+
+  const schedule = calculatePaymentSchedule(booking);
+  const amountDueNow = booking.bookingStatus === BOOKING_STATUS.REQUESTED
+    ? Math.max(0, schedule.advanceAmount - booking.amountPaid)
+    : schedule.remainingAmount;
+  if (amountDueNow <= 0) throw ApiError.badRequest('There is no payment due for this booking');
+  const requestedAmount = amount === undefined ? amountDueNow : Number(amount);
+  if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || requestedAmount > amountDueNow) {
+    throw ApiError.badRequest(`Payment amount must be between ₹1 and ₹${amountDueNow}`);
   }
 
   const transactionId = `TXN_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -23,7 +38,10 @@ export const initializePayment = asyncHandler(async (req, res) => {
     bookingId: booking._id,
     payerId: req.user._id,
     recipientId: booking.sellerId,
-    amount: booking.totalAmount,
+    amount: requestedAmount,
+    paymentType: booking.bookingStatus === BOOKING_STATUS.REQUESTED
+      ? 'ADVANCE'
+      : requestedAmount === schedule.remainingAmount ? 'BALANCE' : 'PARTIAL',
     currency: 'INR',
     paymentGateway: 'MockGateway',
     paymentMethod,
@@ -38,6 +56,9 @@ export const initializePayment = asyncHandler(async (req, res) => {
     amount: payment.amount,
     currency: payment.currency,
     receiptNumber: payment.receiptNumber,
+    paymentType: payment.paymentType,
+    amountDueNow,
+    remainingAmount: schedule.remainingAmount,
   }, 'Payment order initialized');
 });
 
@@ -52,7 +73,8 @@ export const verifyAndCompletePayment = asyncHandler(async (req, res) => {
   }
 
   if (payment.status === 'SUCCESS') {
-    return ok(res, payment, 'Payment already processed successfully');
+    const booking = await Booking.findById(payment.bookingId);
+    return ok(res, { payment, booking }, 'Payment already processed successfully');
   }
 
   if (status === 'FAILED') {
@@ -67,18 +89,15 @@ export const verifyAndCompletePayment = asyncHandler(async (req, res) => {
   payment.paidAt = new Date();
   await payment.save();
 
-  // Update underlying booking status
-  await Booking.findByIdAndUpdate(payment.bookingId, {
-    paymentStatus: 'PAID',
-    $push: {
-      timeline: {
-        status: 'PAYMENT_RECEIVED',
-        note: `Online payment completed via ${payment.paymentMethod} (Txn: ${payment.transactionId})`,
-        at: new Date(),
-        by: req.user._id,
-      },
-    },
-  });
+  const booking = await Booking.findById(payment.bookingId);
+  if (!booking) throw ApiError.notFound('Booking not found for this payment');
+  booking.amountPaid = Math.min(booking.totalAmount, booking.amountPaid + payment.amount);
+  booking.addTimeline(
+    'PAYMENT_RECEIVED',
+    `Online payment of ₹${payment.amount} completed via ${payment.paymentMethod} (Txn: ${payment.transactionId})`,
+    req.user._id
+  );
+  await booking.save();
 
   // Trigger Notifications
   await notify({
@@ -90,7 +109,7 @@ export const verifyAndCompletePayment = asyncHandler(async (req, res) => {
     email: true,
   });
 
-  return ok(res, payment, 'Payment confirmed successfully');
+  return ok(res, { payment, booking }, 'Payment confirmed successfully');
 });
 
 export const getPaymentReceipt = asyncHandler(async (req, res) => {

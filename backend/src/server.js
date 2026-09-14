@@ -2,6 +2,7 @@ import app from './app.js';
 import config from './config/index.js';
 import logger from './config/logger.js';
 import { connectDB, disconnectDB } from './config/db.js';
+import { sendOutstandingPaymentReminders } from './services/paymentReminder.service.js';
 
 let server;
 
@@ -13,6 +14,8 @@ const start = async () => {
       logger.info(`📚 API docs: http://localhost:${config.port}/api-docs`);
       logger.info(`🔗 Base URL: http://localhost:${config.port}${config.apiPrefix}`);
     });
+    const reminderTimer = setInterval(() => sendOutstandingPaymentReminders(), 24 * 60 * 60 * 1000);
+    reminderTimer.unref();
   } catch (err) {
     logger.error(`Failed to start server: ${err.message}`);
     process.exit(1);

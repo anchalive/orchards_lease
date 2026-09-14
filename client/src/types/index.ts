@@ -216,6 +216,12 @@ export interface Booking {
   paymentStatus: string;
   totalAmount: number;
   originalAmount?: number;
+  advancePaymentPercent?: number;
+  advanceAmount?: number;
+  amountPaid?: number;
+  remainingAmount?: number;
+  balanceDueDate?: string;
+  leaseActivatedAt?: string;
   message?: string;
   rejectionReason?: string;
   cancellationReason?: string;

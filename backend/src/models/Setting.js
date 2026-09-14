@@ -17,6 +17,8 @@ const settingSchema = new mongoose.Schema(
     featuredLimit: { type: Number, default: 8 },
     supportEmail: { type: String, default: 'support@orchardlease.com' },
     commissionPercent: { type: Number, default: 10 },
+    advancePaymentPercent: { type: Number, default: 30, min: 0, max: 100 },
+    balanceDueDaysBeforeLease: { type: Number, default: 0, min: 0, max: 365 },
   },
   { timestamps: true }
 );

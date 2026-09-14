@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { BOOKING_STATUS, PAYMENT_STATUS } from '../utils/constants.js';
+import { calculatePaymentSchedule } from '../utils/paymentSchedule.js';
 
 const timelineSchema = new mongoose.Schema(
   {
@@ -63,6 +64,13 @@ const bookingSchema = new mongoose.Schema(
 
     totalAmount: { type: Number, required: true, min: 0 },
     originalAmount: { type: Number, min: 0 },
+    advancePaymentPercent: { type: Number, min: 0, max: 100, default: 30 },
+    advanceAmount: { type: Number, min: 0, default: 0 },
+    amountPaid: { type: Number, min: 0, default: 0 },
+    remainingAmount: { type: Number, min: 0, default: 0 },
+    balanceDueDate: { type: Date, default: null },
+    leaseActivatedAt: { type: Date, default: null },
+    lastPaymentReminderAt: { type: Date, default: null },
     message: { type: String, default: '', maxlength: 1000 },
     rejectionReason: { type: String, default: '' },
     cancellationReason: { type: String, default: '' },
@@ -92,6 +100,23 @@ const bookingSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+bookingSchema.pre('validate', function updatePaymentSchedule(next) {
+  const schedule = calculatePaymentSchedule({
+    totalAmount: this.totalAmount,
+    advancePaymentPercent: this.advancePaymentPercent,
+    amountPaid: this.amountPaid,
+    startDate: this.startDate,
+    balanceDueDaysBeforeLease: this.balanceDueDate && this.startDate
+      ? Math.max(0, Math.round((new Date(this.startDate) - new Date(this.balanceDueDate)) / (24 * 60 * 60 * 1000)))
+      : 0,
+  });
+  this.advanceAmount = schedule.advanceAmount;
+  this.remainingAmount = schedule.remainingAmount;
+  this.paymentStatus = schedule.paymentStatus;
+  if (!this.balanceDueDate) this.balanceDueDate = schedule.balanceDueDate;
+  next();
+});
 
 bookingSchema.index({ sellerId: 1, bookingStatus: 1 });
 bookingSchema.index({ renterId: 1, bookingStatus: 1 });

@@ -7,6 +7,7 @@ import { BOOKING_STATUS, ORCHARD_STATUS, ROLES, NOTIFICATION_TYPE } from '../uti
 import Booking from '../models/Booking.js';
 import Orchard from '../models/Orchard.js';
 import { notify } from '../services/notification.service.js';
+import Setting from '../models/Setting.js';
 
 /* ------------------------- Pricing helper -------------------------- */
 const getSeasonalBasePrice = (orchard, startDate) => {
@@ -72,6 +73,8 @@ export const createBooking = asyncHandler(async (req, res) => {
 
   const calculatedTotal = computeTotal(orchard, startDate, endDate);
   const initialAmount = proposedPrice && proposedPrice > 0 ? proposedPrice : calculatedTotal;
+  const settings = await Setting.getSingleton();
+  const balanceDueDate = new Date(reqStart.getTime() - settings.balanceDueDaysBeforeLease * 24 * 60 * 60 * 1000);
 
   const initialNegotiations = proposedPrice && proposedPrice !== calculatedTotal ? [{
     offeredBy: req.user._id,
@@ -88,6 +91,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     endDate,
     totalAmount: initialAmount,
     originalAmount: calculatedTotal,
+    advancePaymentPercent: settings.advancePaymentPercent,
+    balanceDueDate,
     message,
     negotiations: initialNegotiations,
     timeline: [{ status: BOOKING_STATUS.REQUESTED, note: 'Booking requested', by: req.user._id }],
@@ -191,7 +196,12 @@ export const approveBooking = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Only requested bookings can be approved');
   }
 
+  if (booking.amountPaid < booking.advanceAmount) {
+    throw ApiError.badRequest(`Advance payment of ₹${booking.advanceAmount} is required before activating this lease`);
+  }
+
   booking.bookingStatus = BOOKING_STATUS.APPROVED;
+  booking.leaseActivatedAt = new Date();
   booking.addTimeline(BOOKING_STATUS.APPROVED, 'Booking approved by seller', req.user._id);
   await booking.save();
 
@@ -313,6 +323,7 @@ export const acceptCounterOffer = asyncHandler(async (req, res) => {
 
   latestNegotiation.status = 'ACCEPTED';
   booking.totalAmount = latestNegotiation.amount;
+  booking.advanceAmount = Math.round((latestNegotiation.amount * booking.advancePaymentPercent) / 100);
   booking.addTimeline('OFFER_ACCEPTED', `Accepted price: ${latestNegotiation.amount}`, req.user._id);
   await booking.save();
 
