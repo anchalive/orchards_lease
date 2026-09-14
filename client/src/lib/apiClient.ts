@@ -23,6 +23,25 @@ export const setAccessToken = (token: string | null) => {
 };
 export const getAccessToken = () => accessToken;
 
+let refreshPromise: Promise<string> | null = null;
+
+export const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
+      .then(({ data }) => {
+        const token = data.data.accessToken as string;
+        setAccessToken(token);
+        return token;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
 export const setSessionId = (id: string | null) => {
   sessionId = id;
   if (id) localStorage.setItem('ol-session-id', id);
@@ -83,13 +102,7 @@ api.interceptors.response.use(
       original._retry = true;
       isRefreshing = true;
       try {
-        const { data } = await axios.post(
-          `${BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        const newToken = data.data.accessToken as string;
-        setAccessToken(newToken);
+        const newToken = await refreshAccessToken();
         flushQueue(null, newToken);
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);

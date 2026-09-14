@@ -6,8 +6,8 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import axios from 'axios';
 import {
+  refreshAccessToken,
   setAccessToken,
   setSessionId,
   setAuthFailureHandler,
@@ -33,7 +33,6 @@ interface AuthContextValue {
   updateUser: (patch: Partial<User>) => void;
 }
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -54,12 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.post(
-          `${BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        setAccessToken(data.data.accessToken);
+        await refreshAccessToken();
         const me = await authService.me();
         setUser(me);
       } catch {
