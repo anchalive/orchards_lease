@@ -16,6 +16,14 @@ const toInt = (v, fallback) => {
   return Number.isNaN(n) ? fallback : n;
 };
 
+const normalizeOrigin = (value, fallback) => (value || fallback).replace(/\/$/, '');
+
+const cookieDomain = (() => {
+  const value = process.env.COOKIE_DOMAIN?.trim();
+  if (!value || /^(localhost|127(?:\.\d{1,3}){3})$/i.test(value)) return undefined;
+  return value.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+})();
+
 const required = (key) => {
   const val = process.env[key];
   if (!val && process.env.NODE_ENV === 'production') {
@@ -31,8 +39,8 @@ const config = {
 
   port: toInt(process.env.PORT, 5000),
   apiPrefix: process.env.API_PREFIX || '/api/v1',
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
-  adminUrl: process.env.ADMIN_URL || 'http://localhost:5174',
+  clientUrl: normalizeOrigin(process.env.CLIENT_URL, 'http://localhost:5173'),
+  adminUrl: normalizeOrigin(process.env.ADMIN_URL, 'http://localhost:5174'),
 
   db: {
     uri: required('MONGODB_URI') || 'mongodb://127.0.0.1:27017/orchardlease',
@@ -50,7 +58,7 @@ const config = {
 
   cookie: {
     secret: process.env.COOKIE_SECRET || 'dev_cookie_secret',
-    domain: process.env.COOKIE_DOMAIN || undefined,
+    domain: cookieDomain,
   },
 
   admin: {

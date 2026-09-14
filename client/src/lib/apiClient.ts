@@ -4,7 +4,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const BASE_URL = import.meta.env.PROD ? '/api/v1' : import.meta.env.VITE_API_URL || '/api/v1';
 
 // Warn in production if no absolute API URL was provided — common cause of 404s
 if (import.meta.env.PROD && BASE_URL === '/api/v1') {
