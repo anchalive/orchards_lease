@@ -53,7 +53,6 @@ export function RouteNavigationModal({ orchard, isOpen, onClose }: RouteNavigati
       appId,
       destLat,
       destLng,
-      orchard.gardenName,
       userLat,
       userLng,
       selectedMode

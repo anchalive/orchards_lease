@@ -18,6 +18,18 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+export interface PaymentHistoryQuery {
+  search?: string;
+  status?: PaymentRecord['status'];
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PaymentHistoryResponse {
+  payments: PaymentRecord[];
+  total: number;
+}
+
 export const paymentService = {
   async initialize(bookingId: string, paymentMethod: string = 'UPI') {
     const { data } = await apiClient.post<ApiResponse<{
@@ -36,6 +48,11 @@ export const paymentService = {
       status,
       failureReason,
     });
+    return data.data;
+  },
+
+  async getHistory(params: PaymentHistoryQuery = {}) {
+    const { data } = await apiClient.get<ApiResponse<PaymentHistoryResponse>>('/payments', { params });
     return data.data;
   },
 

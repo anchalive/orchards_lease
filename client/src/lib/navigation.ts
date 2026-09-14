@@ -109,7 +109,6 @@ export function getNavigationUrl(
   app: MapAppId,
   destLat: number,
   destLng: number,
-  destName?: string,
   originLat?: number,
   originLng?: number,
   mode: TravelMode = 'driving'

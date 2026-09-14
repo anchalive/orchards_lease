@@ -15,6 +15,7 @@ import weatherRoutes from './weather.routes.js';
 import questionRoutes from './question.routes.js';
 import followRoutes from './follow.routes.js';
 import recommendationRoutes from './recommendation.routes.js';
+import paymentRoutes from './payment.routes.js';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/orchards', availabilityRoutes);
 router.use('/weather', weatherRoutes);
 router.use('/questions', questionRoutes);
 router.use('/recommendations', recommendationRoutes);
+router.use('/payments', paymentRoutes);
 router.use('/', followRoutes);
 export default router;
 

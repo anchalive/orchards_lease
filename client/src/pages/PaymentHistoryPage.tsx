@@ -12,6 +12,7 @@ import { Spinner, Button, EmptyState, Badge } from '@/components/ui';
 import { formatDate, formatCurrency } from '@/lib/format';
 import { useToast } from '@/context/ToastContext';
 import { getErrorMessage } from '@/lib/apiClient';
+import { generatePaymentInvoicePDF } from '@/lib/invoiceGenerator';
 
 export default function PaymentHistoryPage() {
   const toast = useToast();
@@ -196,6 +197,3 @@ export default function PaymentHistoryPage() {
   );
 }
 
-function generatePaymentInvoicePDF(_bookingId: any, _arg1: { paymentId: string; transactionId: string; receiptNumber: string; paymentMethod: "UPI" | "CARD" | "NET_BANKING" | "WALLET" | "OTHER"; paidAt: string | undefined; amount: number; }) {
-    throw new Error('Function not implemented.');
-}

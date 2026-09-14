@@ -7,6 +7,7 @@ router.use(requireAuth);
 
 router.post('/initialize', payment.initializePayment);
 router.post('/verify', payment.verifyAndCompletePayment);
+router.get('/', payment.getPaymentHistory);
 router.get('/:id/receipt', payment.getPaymentReceipt);
 
 export default router;

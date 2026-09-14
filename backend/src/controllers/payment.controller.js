@@ -108,3 +108,30 @@ export const getPaymentReceipt = asyncHandler(async (req, res) => {
 
   return ok(res, payment, 'Payment receipt retrieved');
 });
+
+export const getPaymentHistory = asyncHandler(async (req, res) => {
+  const { search, status, startDate, endDate } = req.query;
+  const userId = req.user._id;
+  const filter = { $or: [{ payerId: userId }, { recipientId: userId }] };
+
+  if (status) filter.status = status;
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setDate(end.getDate() + 1);
+      filter.createdAt.$lt = end;
+    }
+  }
+  if (search) {
+    filter.$and = [{ $or: [{ transactionId: new RegExp(search, 'i') }, { receiptNumber: new RegExp(search, 'i') }] }];
+  }
+
+  const [payments, total] = await Promise.all([
+    Payment.find(filter).sort({ createdAt: -1 }).lean(),
+    Payment.countDocuments(filter),
+  ]);
+
+  return ok(res, { payments, total }, 'Payment history retrieved');
+});

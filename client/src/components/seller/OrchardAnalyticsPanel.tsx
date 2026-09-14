@@ -288,7 +288,7 @@ export function OrchardAnalyticsPanel({ orchardId, gardenName }: Props) {
                 <h3 className="text-[13px] font-semibold text-ink">Booking Status Breakdown</h3>
               </div>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(byStat).map(([status, count]) => (
+                {Object.entries(byStat).map(([status]) => (
                   <BookingBadge key={status} status={status} />
                 ))}
               </div>
